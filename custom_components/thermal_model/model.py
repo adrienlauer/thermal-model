@@ -346,6 +346,7 @@ class ThermalModel:
                     for sensor in quality[CONF_EXCLUSION_SENSORS]
                 },
                 quality,
+                zone[CONF_COMFORT],
                 start,
                 end,
             )
@@ -395,6 +396,7 @@ class ThermalModel:
         indoor_states: list[Any],
         exclusion_history: dict[str, list[Any]],
         quality: dict[str, Any],
+        comfort: dict[str, Any],
         start,
         end,
     ) -> dict[str, float | int | None]:
@@ -418,14 +420,14 @@ class ThermalModel:
         heating = 100 * warming["response"] if warming else None
         cooling_rate = 100 * cooling["response"] if cooling else None
         retention = 100 - min(100, fmean(responses) * 100) if responses else None
-        comfort = self._comfort_metrics(periods, zone[CONF_COMFORT])
+        comfort_metrics = self._comfort_metrics(periods, comfort)
         return {
             **quality_summary,
             "heating_responsiveness": heating,
             "cooling_responsiveness": cooling_rate,
             "night_cooling_effectiveness": cooling_rate,
             "comfort_retention_score": retention,
-            **comfort,
+            **comfort_metrics,
         }
 
     @staticmethod
