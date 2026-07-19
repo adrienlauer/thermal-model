@@ -30,6 +30,7 @@ from .const import (
     CONF_MIN_TEMPERATURE,
     CONF_MIN_TEMPERATURE_GAIN,
     CONF_NAME,
+    CONF_LABELS,
     CONF_OUTDOOR,
     CONF_QUALITY,
     CONF_EXCLUSION_SENSORS,
@@ -143,6 +144,10 @@ class ThermalModel:
         state = self.hass.states.get(entity_id) if entity_id else None
         return _number(state.state) if state else None
 
+    def label(self, key: str, default: str) -> str:
+        """Return an optional consumer-provided display label."""
+        return self.configuration.get(CONF_LABELS, {}).get(key, default)
+
     def _outdoor_snapshot(self) -> dict[str, float] | None:
         temperature = self._state_number(self.outdoor[CONF_TEMPERATURE_SENSOR])
         humidity = self._state_number(self.outdoor[CONF_HUMIDITY_SENSOR])
@@ -199,24 +204,24 @@ class ThermalModel:
             if metric in {"cooling_lag", "warming_lag", "thermal_inertia", "thermal_response"}:
                 analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
                 return {
-                    "dernière_analyse": self._analysis.get("analyzed_at"),
-                    "jours_retenus": analysis.get("accepted_days", 0),
-                    "jours_requis": self.configuration[CONF_HISTORY_DAYS],
-                    "jours_examinés": analysis.get("examined_days", 0),
-                    "jours_écartés": analysis.get("rejected_days", 0),
-                    "jours_écartés_données_incomplètes": analysis.get(
+                    "last_analysis": self._analysis.get("analyzed_at"),
+                    "accepted_days": analysis.get("accepted_days", 0),
+                    "required_days": self.configuration[CONF_HISTORY_DAYS],
+                    "examined_days": analysis.get("examined_days", 0),
+                    "rejected_days": analysis.get("rejected_days", 0),
+                    "rejected_incomplete_days": analysis.get(
                         "rejected_incomplete_days", 0
                     ),
-                    "jours_écartés_amplitude_extérieure": analysis.get(
+                    "rejected_low_outdoor_range_days": analysis.get(
                         "rejected_low_outdoor_range_days", 0
                     ),
-                    "jours_écartés_variation_intérieure": analysis.get(
+                    "rejected_indoor_change_days": analysis.get(
                         "rejected_indoor_change_days", 0
                     ),
-                    "jours_écartés_capteur_d_exclusion": analysis.get(
+                    "rejected_exclusion_sensor_days": analysis.get(
                         "rejected_exclusion_sensor_days", 0
                     ),
-                    "fenêtre_maximale_jours": self.configuration[CONF_HISTORY_LOOKBACK_DAYS],
+                    "maximum_lookback_days": self.configuration[CONF_HISTORY_LOOKBACK_DAYS],
                 }
             return {}
         snapshot = self._zone_snapshot(zone)
@@ -225,12 +230,12 @@ class ThermalModel:
             return {}
         projected = projected_humidity(snapshot["temperature"], outdoor["absolute_humidity"])
         return {
-            "écart_enthalpie": round(snapshot["enthalpy"] - outdoor["enthalpy"], 1),
-            "écart_humidité_absolue": round(
+            "enthalpy_difference": round(snapshot["enthalpy"] - outdoor["enthalpy"], 1),
+            "absolute_humidity_difference": round(
                 snapshot["absolute_humidity"] - outdoor["absolute_humidity"], 1
             ),
-            "humidité_projetée": round(projected, 1),
-            "pluie": self._is_raining(),
+            "projected_humidity": round(projected, 1),
+            "raining": self._is_raining(),
         }
 
     def global_value(self, metric: str) -> float | str | None:
@@ -247,8 +252,8 @@ class ThermalModel:
             advice = [self._ventilation_advice(zone, self._zone_snapshot(zone), outdoor) for zone in self.zones]
             if any(value is None for value in advice):
                 return None
-            count = sum(value in {"Aérer", "Aérer brièvement"} for value in advice)
-            return "Garder fermé" if count == 0 else f"Aérer {count} pièce" + ("" if count == 1 else "s")
+            count = sum(value in {self.label('ventilate', 'Ventilate'), self.label('ventilate_briefly', 'Ventilate Briefly')} for value in advice)
+            return self.label('keep_closed', 'Keep Closed') if count == 0 else f"{self.label('ventilate', 'Ventilate')} {count} room" + ("" if count == 1 else "s")
         return None
 
     def _ventilation_advice(
@@ -261,14 +266,14 @@ class ThermalModel:
             return None
         ventilation = zone[CONF_VENTILATION]
         if self._is_raining():
-            return "Garder fermé"
+            return self.label('keep_closed', 'Keep Closed')
         projected = projected_humidity(snapshot["temperature"], outdoor["absolute_humidity"])
         lower_bound = self._state_number(zone.get(CONF_PROJECTED_HUMIDITY_MIN_ENTITY))
         upper_bound = self._state_number(zone.get(CONF_PROJECTED_HUMIDITY_MAX_ENTITY))
         if lower_bound is not None and projected < lower_bound:
-            return "Garder fermé"
+            return self.label('keep_closed', 'Keep Closed')
         if upper_bound is not None and projected > upper_bound:
-            return "Garder fermé"
+            return self.label('keep_closed', 'Keep Closed')
         enthalpy_gain = snapshot["enthalpy"] - outdoor["enthalpy"]
         absolute_humidity_gain = snapshot["absolute_humidity"] - outdoor["absolute_humidity"]
         cooling = (
@@ -281,8 +286,8 @@ class ThermalModel:
             and absolute_humidity_gain >= ventilation[CONF_DRYING_MIN_ABSOLUTE_HUMIDITY_GAIN]
         )
         if drying and outdoor["temperature"] < ventilation[CONF_BRIEF_VENTILATION_BELOW]:
-            return "Aérer brièvement"
-        return "Aérer" if cooling or drying else "Garder fermé"
+            return self.label('ventilate_briefly', 'Ventilate Briefly')
+        return self.label('ventilate', 'Ventilate') if cooling or drying else self.label('keep_closed', 'Keep Closed')
 
     async def async_analyze(self, requested_zone_ids: list[str] | None = None) -> None:
         """Estimate thermal response from the most recent acceptable days."""

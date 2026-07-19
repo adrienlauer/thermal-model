@@ -1,9 +1,9 @@
 analyze:
-  name: Analyser le modèle thermique
-  description: Calcule les déphasages et la réactivité thermique depuis l'historique Recorder.
+  name: Analyze thermal model
+  description: Calculates thermal lag and responsiveness from Recorder history.
   fields:
     zone_ids:
       name: Zones
-      description: Identifiants techniques des zones à recalculer. Toutes les zones sont utilisées si ce champ est absent.
+      description: Technical zone IDs to recalculate. All zones are used when omitted.
       selector:
         object:

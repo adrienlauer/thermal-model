@@ -71,7 +71,7 @@ class ZoneMetricSensor(SensorEntity):
         self.zone = zone
         self.description = description
         self._attr_unique_id = f"{DOMAIN}_{zone[CONF_ID]}_{description.key}"
-        self._attr_name = f"Modèle thermique {zone[CONF_NAME]} {description.label}"
+        self._attr_name = f"{self.model.label('prefix', 'Thermal Model')} {zone[CONF_NAME]} {self.model.label(description.key, description.label)}"
         self._attr_native_unit_of_measurement = description.unit
         self._attr_device_class = description.device_class
         self._attr_state_class = description.state_class
@@ -111,7 +111,7 @@ class GlobalMetricSensor(SensorEntity):
         self.model = model
         self.description = description
         self._attr_unique_id = f"{DOMAIN}_{description.key}"
-        self._attr_name = f"Modèle thermique {description.label}"
+        self._attr_name = f"{self.model.label('prefix', 'Thermal Model')} {self.model.label(description.key, description.label)}"
         self._attr_native_unit_of_measurement = description.unit
         self._attr_state_class = description.state_class
         self._attr_icon = description.icon
