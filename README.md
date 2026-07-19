@@ -9,7 +9,7 @@ from Recorder statistics.
 - Live absolute humidity, specific enthalpy, humidex, projected humidity, and enthalpy gain.
 - Per-zone ventilation advice based on temperature, moisture, enthalpy, rain, and optional projected-humidity limits.
 - A live, season-adaptive comfort score.
-- Historical comfort stability, heating and cooling responsiveness, comfort retention, and night-cooling effectiveness.
+- Historical comfort stability score, temperature variation rate, heating and cooling responsiveness, comfort retention, and night-cooling effectiveness.
 - A building-wide average enthalpy, enthalpy gain, and ventilation summary.
 - Localized entity names and recommendations through configurable labels.
 
@@ -167,7 +167,8 @@ Each zone receives the following sensors:
 | Enthalpy Gain                    | Indoor specific enthalpy minus outdoor specific enthalpy. A positive value means outdoor air has lower enthalpy.              |
 | Ventilation Advice               | `Ventilate`, `Ventilate Briefly`, or `Keep Closed`.                                                                           |
 | Comfort Score                    | Live temperature score using a season-adaptive target derived from the recent outdoor mean.                                   |
-| Comfort Stability                | Historical score based on the typical hourly indoor-temperature movement.                                                     |
+| Comfort Stability                | Historical score from `0` to `5` based on the typical hourly indoor-temperature movement.                                     |
+| Temperature Variation Rate       | Mean absolute indoor-temperature variation between hourly samples, in °C/h.                                                   |
 | Heating / Cooling Responsiveness | Historical indoor response relative to outdoor warming or cooling.                                                            |
 | Night Cooling Effectiveness      | Historical cooling effectiveness from sunset until two hours after sunrise.                                                   |
 | Comfort Retention Score          | Inverse of the historical average thermal response; higher means indoor temperature changes less relative to outdoor changes. |

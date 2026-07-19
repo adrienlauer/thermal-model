@@ -35,7 +35,6 @@ from .const import (
     CONF_OUTDOOR,
     CONF_QUALITY,
     CONF_COMFORT,
-    CONF_TARGET_TEMPERATURE,
     CONF_TEMPERATURE_TOLERANCE,
     CONF_EXCLUSION_SENSORS,
     CONF_STATISTIC_ID,
@@ -220,7 +219,7 @@ class ThermalModel:
 
     def zone_attributes(self, zone: dict[str, Any], metric: str) -> dict[str, Any]:
         if metric != "ventilation_advice":
-            if metric in {"heating_responsiveness", "cooling_responsiveness", "night_cooling_effectiveness", "comfort_retention_score", "comfort_stability"}:
+            if metric in {"heating_responsiveness", "cooling_responsiveness", "night_cooling_effectiveness", "comfort_retention_score", "comfort_stability", "temperature_variation_rate"}:
                 analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
                 return {
                     "last_analysis": self._analysis.get("analyzed_at"),
@@ -445,15 +444,20 @@ class ThermalModel:
 
     @staticmethod
     def _comfort_metrics(periods, comfort):
-        target = comfort[CONF_TARGET_TEMPERATURE]
         tolerance = comfort[CONF_TEMPERATURE_TOLERANCE]
         changes = []
         for _day, _outdoor, indoor in periods:
             for before, after in zip(indoor, indoor[1:], strict=False):
                 changes.append(abs(after - before))
-        stability = max(0, 100 * (1 - fmean(changes) / tolerance)) if changes else None
+        variation_rate = fmean(changes) if changes else None
+        stability = (
+            max(0, min(5, 5 * (1 - variation_rate / tolerance)))
+            if variation_rate is not None
+            else None
+        )
         return {
             "comfort_stability": stability,
+            "temperature_variation_rate": variation_rate,
         }
 
     def _night_cooling_effectiveness(self, periods) -> float | None:
