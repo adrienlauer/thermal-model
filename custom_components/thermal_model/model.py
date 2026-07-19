@@ -151,6 +151,12 @@ class ThermalModel:
         """Return an optional consumer-provided display label."""
         return self.configuration.get(CONF_LABELS, {}).get(key, default)
 
+    def _adaptive_comfort_target(self) -> float:
+        outdoor_mean = self._analysis.get("outdoor_mean_7d")
+        if not isinstance(outdoor_mean, (int, float)):
+            return 21.0
+        return max(20.5, min(25.0, 20.5 + 0.15 * (outdoor_mean - 10)))
+
     def _outdoor_snapshot(self) -> dict[str, float] | None:
         temperature = self._state_number(self.outdoor[CONF_TEMPERATURE_SENSOR])
         humidity = self._state_number(self.outdoor[CONF_HUMIDITY_SENSOR])
@@ -201,9 +207,12 @@ class ThermalModel:
         if metric == "comfort_score":
             if not snapshot:
                 return None
-            comfort = zone[CONF_COMFORT]
-            deviation = abs(snapshot["temperature"] - comfort[CONF_TARGET_TEMPERATURE])
-            return round(max(0, 100 * (1 - deviation / comfort[CONF_TEMPERATURE_TOLERANCE])), 1)
+            target = self._adaptive_comfort_target()
+            lower = target - 1.5
+            upper = target + 2.0
+            temperature = snapshot["temperature"]
+            distance = lower - temperature if temperature < lower else temperature - upper if temperature > upper else 0
+            return round(max(0, 100 * (1 - distance / 4)), 1)
         zone_analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
         value = zone_analysis.get(metric)
         return round(value, 1) if isinstance(value, (int, float)) else None
@@ -331,6 +340,7 @@ class ThermalModel:
         outdoor_history = self._statistics_as_states(
             statistics.get(self.outdoor[CONF_TEMPERATURE_SENSOR], []), "mean"
         )
+        recent_outdoor = [_number(state.state) for state in outdoor_history[-168:]]
         for zone in selected_zones:
             quality = self._zone_quality(zone)
             analyses[zone[CONF_ID]] = self._analyze_zone(
@@ -352,6 +362,7 @@ class ThermalModel:
             )
         self._analysis = {
             "analyzed_at": dt_util.utcnow().isoformat(),
+            "outdoor_mean_7d": fmean(value for value in recent_outdoor if value is not None),
             "zones": analyses,
         }
         await self._store.async_save(self._analysis)
