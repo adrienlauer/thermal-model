@@ -350,14 +350,20 @@ class ThermalModel:
     @staticmethod
     def _statistics_as_states(rows: list[dict[str, Any]], value_key: str) -> list[Any]:
         """Adapt hourly long-term statistics to the recorder state interface."""
-        return [
-            SimpleNamespace(
-                state=row[value_key],
-                last_updated=datetime.fromtimestamp(row["start"] / 1000, dt_util.UTC),
+        states = []
+        for row in rows:
+            if row.get(value_key) is None:
+                continue
+            timestamp = row["start"]
+            if timestamp > 10_000_000_000:
+                timestamp /= 1000
+            states.append(
+                SimpleNamespace(
+                    state=row[value_key],
+                    last_updated=datetime.fromtimestamp(timestamp, dt_util.UTC),
+                )
             )
-            for row in rows
-            if row.get(value_key) is not None
-        ]
+        return states
 
     def _zone_quality(self, zone: dict[str, Any]) -> dict[str, Any]:
         """Merge global day-quality rules with optional zone-specific rules."""
