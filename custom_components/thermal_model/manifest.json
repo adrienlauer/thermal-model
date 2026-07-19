@@ -1,0 +1,8 @@
+{
+  "domain": "thermal_model",
+  "name": "Thermal Model",
+  "codeowners": ["@local"],
+  "documentation": "https://www.home-assistant.io/",
+  "iot_class": "calculated",
+  "version": "0.1.0"
+}

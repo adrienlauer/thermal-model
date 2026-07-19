@@ -1,0 +1,51 @@
+"""Constants for the thermal model integration."""
+
+DOMAIN = "thermal_model"
+SERVICE_ANALYZE = "analyze"
+STORAGE_KEY = f"{DOMAIN}.analysis"
+STORAGE_VERSION = 1
+
+CONF_OUTDOOR = "outdoor"
+CONF_ZONES = "zones"
+CONF_ID = "id"
+CONF_NAME = "name"
+CONF_AREA_ID = "area_id"
+CONF_TEMPERATURE_SENSOR = "temperature_sensor"
+CONF_HUMIDITY_SENSOR = "humidity_sensor"
+CONF_RAIN_SENSOR = "rain_sensor"
+CONF_HISTORY_DAYS = "history_days"
+CONF_HISTORY_LOOKBACK_DAYS = "history_lookback_days"
+CONF_ANALYSIS_INTERVAL_HOURS = "analysis_interval_hours"
+CONF_QUALITY = "quality"
+CONF_MIN_OUTDOOR_TEMPERATURE_RANGE = "min_outdoor_temperature_range"
+CONF_MAX_INDOOR_TEMPERATURE_CHANGE = "max_indoor_temperature_change"
+CONF_EXCLUSION_SENSORS = "exclusion_sensors"
+CONF_ENTITY_ID = "entity_id"
+CONF_ACTIVE_STATE = "active_state"
+CONF_STATISTIC_ID = "statistic_id"
+CONF_STATISTIC_TYPE = "statistic_type"
+CONF_ABOVE = "above"
+CONF_VENTILATION = "ventilation"
+CONF_MIN_TEMPERATURE = "min_temperature"
+CONF_MIN_TEMPERATURE_GAIN = "min_temperature_gain"
+CONF_MIN_ENTHALPY_GAIN = "min_enthalpy_gain"
+CONF_DRYING_MIN_HUMIDITY = "drying_min_humidity"
+CONF_DRYING_MIN_ABSOLUTE_HUMIDITY_GAIN = "drying_min_absolute_humidity_gain"
+CONF_BRIEF_VENTILATION_BELOW = "brief_ventilation_below"
+CONF_PROJECTED_HUMIDITY_MIN_ENTITY = "projected_humidity_min_entity"
+CONF_PROJECTED_HUMIDITY_MAX_ENTITY = "projected_humidity_max_entity"
+
+DEFAULT_HISTORY_DAYS = 42
+DEFAULT_HISTORY_LOOKBACK_DAYS = 120
+DEFAULT_ANALYSIS_INTERVAL_HOURS = 1
+DEFAULT_MIN_OUTDOOR_TEMPERATURE_RANGE = 3.0
+DEFAULT_MAX_INDOOR_TEMPERATURE_CHANGE = 2.0
+DEFAULT_ACTIVE_STATE = "on"
+DEFAULT_STATISTIC_TYPE = "max"
+DEFAULT_ABOVE = 0.0
+DEFAULT_MIN_TEMPERATURE = 24.0
+DEFAULT_MIN_TEMPERATURE_GAIN = 0.8
+DEFAULT_MIN_ENTHALPY_GAIN = 1.5
+DEFAULT_DRYING_MIN_HUMIDITY = 60.0
+DEFAULT_DRYING_MIN_ABSOLUTE_HUMIDITY_GAIN = 1.0
+DEFAULT_BRIEF_VENTILATION_BELOW = 12.0
