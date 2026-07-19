@@ -1,6 +1,8 @@
 # Thermal Model
 
-Thermal Model is a YAML-configured Home Assistant custom integration for indoor climate analysis. It publishes live psychrometric measurements and ventilation advice for each configured zone, then derives longer-term thermal metrics from Recorder statistics.
+Thermal Model is a YAML-configured Home Assistant custom integration for indoor climate analysis. It publishes live
+psychrometric measurements and ventilation advice for each configured zone, then derives longer-term thermal metrics
+from Recorder statistics.
 
 ## Features
 
@@ -15,7 +17,8 @@ Thermal Model is a YAML-configured Home Assistant custom integration for indoor 
 
 - Home Assistant with the [`recorder`](https://www.home-assistant.io/integrations/recorder/) integration enabled.
 - Temperature and relative-humidity sensors for outdoors and every managed zone.
-- At least `history_days` of Recorder long-term statistics for the outdoor temperature and every zone temperature. Sensors must provide usable hourly mean statistics.
+- At least `history_days` of Recorder long-term statistics for the outdoor temperature and every zone temperature.
+  Sensors must provide usable hourly mean statistics.
 - A configured Home Assistant location: night-cooling analysis uses local sunset and sunrise.
 
 ## Installation
@@ -51,7 +54,8 @@ thermal_model:
       humidity_sensor: sensor.living_room_humidity
 ```
 
-`id` and `area_id` must be Home Assistant slugs. The area must already exist. `name` is visible in the generated entity names and can use any language.
+`id` and `area_id` must be Home Assistant slugs. The area must already exist. `name` is visible in the generated entity
+names and can use any language.
 
 ### Full example
 
@@ -72,7 +76,7 @@ thermal_model:
   quality:
     min_outdoor_temperature_range: 3.0
     max_indoor_temperature_change: 2.0
-    exclusion_sensors: []
+    exclusion_sensors: [ ]
 
   zones:
     - id: living_room
@@ -104,21 +108,24 @@ thermal_model:
 
 ### Options
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `history_days` | `42` | Number of acceptable days required before historical metrics are published. Range: 7–90. |
-| `history_lookback_days` | `120` | How far Recorder statistics are searched to collect acceptable days. Range: 14–365. |
-| `analysis_interval_hours` | `1` | Sampling period for historical analysis. Range: 1–6 hours. |
-| `quality.min_outdoor_temperature_range` | `3.0` | Minimum daily outdoor-temperature range, in °C, for a day to be accepted. |
-| `quality.max_indoor_temperature_change` | `2.0` | Maximum change between two samples, in °C, before a day is rejected. |
-| `comfort.target_temperature` | `21` | Reference temperature used for comfort stability. |
-| `comfort.temperature_tolerance` | `1` | Maximum typical temperature movement, in °C, before stability reaches zero. |
+| Option                                  | Default | Description                                                                              |
+|-----------------------------------------|---------|------------------------------------------------------------------------------------------|
+| `history_days`                          | `42`    | Number of acceptable days required before historical metrics are published. Range: 7–90. |
+| `history_lookback_days`                 | `120`   | How far Recorder statistics are searched to collect acceptable days. Range: 14–365.      |
+| `analysis_interval_hours`               | `1`     | Sampling period for historical analysis. Range: 1–6 hours.                               |
+| `quality.min_outdoor_temperature_range` | `3.0`   | Minimum daily outdoor-temperature range, in °C, for a day to be accepted.                |
+| `quality.max_indoor_temperature_change` | `2.0`   | Maximum change between two samples, in °C, before a day is rejected.                     |
+| `comfort.target_temperature`            | `21`    | Reference temperature used for comfort stability.                                        |
+| `comfort.temperature_tolerance`         | `1`     | Maximum typical temperature movement, in °C, before stability reaches zero.              |
 
-Zone `quality` settings override the global values for that zone. `rain_sensor` and both projected-humidity-limit entities are optional.
+Zone `quality` settings override the global values for that zone. `rain_sensor` and both projected-humidity-limit
+entities are optional.
 
 ### Excluding unsuitable days
 
-Use `exclusion_sensors` when a known condition makes thermal analysis unrepresentative, such as a window-open indicator or HVAC mode. Each entry references a Recorder statistic ID and rejects the day when the selected statistic is greater than `above`.
+Use `exclusion_sensors` when a known condition makes thermal analysis unrepresentative, such as a window-open indicator
+or HVAC mode. Each entry references a Recorder statistic ID and rejects the day when the selected statistic is greater
+than `above`.
 
 ```yaml
 thermal_model:
@@ -151,27 +158,30 @@ Label changes affect entity display names, not their stable entity IDs or unique
 
 Each zone receives the following sensors:
 
-| Metric | Meaning |
-| --- | --- |
-| Absolute Humidity | Water-vapor mass per cubic metre of air. |
-| Specific Enthalpy | Total heat and moisture content of air, in kJ/kg. |
-| Humidex | Apparent temperature derived from temperature and humidity. |
-| Projected Humidity | Estimated relative humidity if indoor air is replaced by outdoor air at the current indoor temperature. |
-| Enthalpy Gain | Indoor specific enthalpy minus outdoor specific enthalpy. A positive value means outdoor air has lower enthalpy. |
-| Ventilation Advice | `Ventilate`, `Ventilate Briefly`, or `Keep Closed`. |
-| Comfort Score | Live temperature score using a season-adaptive target derived from the recent outdoor mean. |
-| Comfort Stability | Historical score based on the typical hourly indoor-temperature movement. |
-| Heating / Cooling Responsiveness | Historical indoor response relative to outdoor warming or cooling. |
-| Night Cooling Effectiveness | Historical cooling effectiveness from sunset until two hours after sunrise. |
-| Comfort Retention Score | Inverse of the historical average thermal response; higher means indoor temperature changes less relative to outdoor changes. |
+| Metric                           | Meaning                                                                                                                       |
+|----------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
+| Absolute Humidity                | Water-vapor mass per cubic metre of air.                                                                                      |
+| Specific Enthalpy                | Total heat and moisture content of air, in kJ/kg.                                                                             |
+| Humidex                          | Apparent temperature derived from temperature and humidity.                                                                   |
+| Projected Humidity               | Estimated relative humidity if indoor air is replaced by outdoor air at the current indoor temperature.                       |
+| Enthalpy Gain                    | Indoor specific enthalpy minus outdoor specific enthalpy. A positive value means outdoor air has lower enthalpy.              |
+| Ventilation Advice               | `Ventilate`, `Ventilate Briefly`, or `Keep Closed`.                                                                           |
+| Comfort Score                    | Live temperature score using a season-adaptive target derived from the recent outdoor mean.                                   |
+| Comfort Stability                | Historical score based on the typical hourly indoor-temperature movement.                                                     |
+| Heating / Cooling Responsiveness | Historical indoor response relative to outdoor warming or cooling.                                                            |
+| Night Cooling Effectiveness      | Historical cooling effectiveness from sunset until two hours after sunrise.                                                   |
+| Comfort Retention Score          | Inverse of the historical average thermal response; higher means indoor temperature changes less relative to outdoor changes. |
 
-The integration also publishes Average Indoor Enthalpy, Average Indoor Enthalpy Gain, and Ventilation Summary for all configured zones.
+The integration also publishes Average Indoor Enthalpy, Average Indoor Enthalpy Gain, and Ventilation Summary for all
+configured zones.
 
-Historical metrics remain unavailable until enough acceptable days have been found. Their attributes report how many days were accepted, examined, and rejected, which is useful when tuning quality rules.
+Historical metrics remain unavailable until enough acceptable days have been found. Their attributes report how many
+days were accepted, examined, and rejected, which is useful when tuning quality rules.
 
 ## Running the analysis
 
-Call `thermal_model.analyze` to refresh historical metrics. With no data, all configured zones are analysed. `zone_ids` optionally restricts the run to one or more technical zone IDs.
+Call `thermal_model.analyze` to refresh historical metrics. With no data, all configured zones are analysed. `zone_ids`
+optionally restricts the run to one or more technical zone IDs.
 
 ```yaml
 service: thermal_model.analyze
@@ -195,14 +205,20 @@ automation:
 
 ## Troubleshooting
 
-- **Live metrics are `unknown`:** verify that the configured temperature and humidity entities have current numeric states.
-- **Historical metrics are `unknown`:** check the entity history and long-term statistics, then inspect the metric attributes for accepted and rejected day counts. Increase `history_lookback_days`, reduce `history_days`, or adjust quality thresholds only when the retained days are genuinely representative.
-- **Night cooling is `unknown`:** ensure Home Assistant has a valid location and that enough consecutive acceptable days exist to cover the night period.
-- **No new entities after installation:** confirm the directory is exactly `custom_components/thermal_model`, check the Home Assistant logs, and restart after any Python or YAML change.
+- **Live metrics are `unknown`:** verify that the configured temperature and humidity entities have current numeric
+  states.
+- **Historical metrics are `unknown`:** check the entity history and long-term statistics, then inspect the metric
+  attributes for accepted and rejected day counts. Increase `history_lookback_days`, reduce `history_days`, or adjust
+  quality thresholds only when the retained days are genuinely representative.
+- **Night cooling is `unknown`:** ensure Home Assistant has a valid location and that enough consecutive acceptable days
+  exist to cover the night period.
+- **No new entities after installation:** confirm the directory is exactly `custom_components/thermal_model`, check the
+  Home Assistant logs, and restart after any Python or YAML change.
 
 ## Development
 
-The integration uses only Home Assistant core APIs and Python standard-library calculations. Run a syntax check before committing:
+The integration uses only Home Assistant core APIs and Python standard-library calculations. Run a syntax check before
+committing:
 
 ```bash
 python3 -m py_compile custom_components/thermal_model/*.py
