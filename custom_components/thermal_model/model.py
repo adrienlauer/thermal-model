@@ -204,22 +204,20 @@ class ThermalModel:
             return round(snapshot["enthalpy"] - outdoor["enthalpy"], 1)
         if metric == "ventilation_advice":
             return self._ventilation_advice(zone, snapshot, outdoor)
-        if metric == "comfort_score":
+        if metric in {"comfort_score", "comfort_temperature_deviation"}:
             if not snapshot:
                 return None
-            target = self._adaptive_comfort_target()
-            lower = target - 1.5
-            upper = target + 2.0
-            temperature = snapshot["temperature"]
-            distance = lower - temperature if temperature < lower else temperature - upper if temperature > upper else 0
-            return round(max(0, 100 * (1 - distance / 4)), 1)
+            distance = self._comfort_temperature_deviation(snapshot["temperature"])
+            if metric == "comfort_temperature_deviation":
+                return round(distance, 1)
+            return round(max(0, min(5, 5 * (1 - distance / 4))), 1)
         zone_analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
         value = zone_analysis.get(metric)
         return round(value, 1) if isinstance(value, (int, float)) else None
 
     def zone_attributes(self, zone: dict[str, Any], metric: str) -> dict[str, Any]:
         if metric != "ventilation_advice":
-            if metric in {"heating_responsiveness", "cooling_responsiveness", "night_cooling_effectiveness", "comfort_retention_score", "comfort_stability", "temperature_variation_rate"}:
+            if metric in {"heating_responsiveness", "cooling_responsiveness", "night_cooling_effectiveness", "night_cooling_rate", "comfort_retention_score", "comfort_stability", "temperature_variation_rate"}:
                 analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
                 return {
                     "last_analysis": self._analysis.get("analyzed_at"),
@@ -255,6 +253,12 @@ class ThermalModel:
             "projected_humidity": round(projected, 1),
             "raining": self._is_raining(),
         }
+
+    def _comfort_temperature_deviation(self, temperature: float) -> float:
+        target = self._adaptive_comfort_target()
+        lower = target - 1.5
+        upper = target + 2.0
+        return lower - temperature if temperature < lower else temperature - upper if temperature > upper else 0.0
 
     def global_value(self, metric: str) -> float | str | None:
         snapshots = [self._zone_snapshot(zone) for zone in self.zones]
@@ -432,12 +436,13 @@ class ThermalModel:
         cooling_rate = 100 * cooling["response"] if cooling else None
         retention = 100 - min(100, fmean(responses) * 100) if responses else None
         comfort_metrics = self._comfort_metrics(periods, comfort)
-        night_cooling = self._night_cooling_effectiveness(periods)
+        night_cooling = self._night_cooling_metrics(periods)
         return {
             **quality_summary,
             "heating_responsiveness": heating,
             "cooling_responsiveness": cooling_rate,
-            "night_cooling_effectiveness": night_cooling,
+            "night_cooling_effectiveness": night_cooling["score"],
+            "night_cooling_rate": night_cooling["rate"],
             "comfort_retention_score": retention,
             **comfort_metrics,
         }
@@ -460,9 +465,11 @@ class ThermalModel:
             "temperature_variation_rate": variation_rate,
         }
 
-    def _night_cooling_effectiveness(self, periods) -> float | None:
-        """Measure cooling only from sunset until two hours after sunrise."""
-        rates = []
+    def _night_cooling_metrics(self, periods) -> dict[str, float | None]:
+        """Measure cooling rate and effectiveness from sunset until two hours after sunrise."""
+        cooling_rates = []
+        effectiveness_rates = []
+        interval_hours = self.configuration[CONF_ANALYSIS_INTERVAL_HOURS]
         samples_by_day = {day: (outdoor, indoor) for day, outdoor, indoor in periods}
         for day, outdoor, indoor in periods:
             sunset = get_astral_event_date(self.hass, "sunset", day)
@@ -476,7 +483,8 @@ class ThermalModel:
                 gap = indoor[hour - 1] - outdoor[hour - 1]
                 cooling = indoor[hour - 1] - indoor[hour]
                 if gap > 0.2 and cooling > 0:
-                    rates.append(100 * cooling / gap)
+                    cooling_rates.append(cooling / interval_hours)
+                    effectiveness_rates.append(100 * cooling / gap)
 
             next_samples = samples_by_day.get(day + timedelta(days=1))
             if not next_samples:
@@ -485,13 +493,20 @@ class ThermalModel:
             gap = indoor[-1] - outdoor[-1]
             cooling = indoor[-1] - next_indoor[0]
             if gap > 0.2 and cooling > 0:
-                rates.append(100 * cooling / gap)
+                cooling_rates.append(cooling / interval_hours)
+                effectiveness_rates.append(100 * cooling / gap)
             for hour in range(1, min(24, end_hour + 1)):
                 gap = next_indoor[hour - 1] - next_outdoor[hour - 1]
                 cooling = next_indoor[hour - 1] - next_indoor[hour]
                 if gap > 0.2 and cooling > 0:
-                    rates.append(100 * cooling / gap)
-        return fmean(rates) if rates else None
+                    cooling_rates.append(cooling / interval_hours)
+                    effectiveness_rates.append(100 * cooling / gap)
+        if not cooling_rates:
+            return {"rate": None, "score": None}
+        return {
+            "rate": fmean(cooling_rates),
+            "score": max(0, min(5, 5 * fmean(effectiveness_rates) / 100)),
+        }
 
     @staticmethod
     def _sample_states(states: list[Any], start, end, interval: timedelta) -> list[float | None]:

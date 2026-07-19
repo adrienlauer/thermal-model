@@ -32,12 +32,14 @@ ZONE_METRICS = (
     MetricDescription(key="projected_humidity", label="Projected Humidity", unit="%", device_class=SensorDeviceClass.HUMIDITY, state_class=SensorStateClass.MEASUREMENT, icon="mdi:water-sync"),
     MetricDescription(key="enthalpy_gain", label="Enthalpy Gain", unit="kJ/kg", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-windy"),
     MetricDescription(key="ventilation_advice", label="Ventilation Advice", icon="mdi:window-open-variant"),
-    MetricDescription(key="comfort_score", label="Comfort Score", unit="%", state_class=SensorStateClass.MEASUREMENT, icon="mdi:home-heart"),
+    MetricDescription(key="comfort_score", label="Comfort Score", state_class=SensorStateClass.MEASUREMENT, icon="mdi:home-heart"),
+    MetricDescription(key="comfort_temperature_deviation", label="Comfort Temperature Deviation", unit="°C", state_class=SensorStateClass.MEASUREMENT, icon="mdi:thermometer-alert"),
     MetricDescription(key="comfort_stability", label="Comfort Stability", state_class=SensorStateClass.MEASUREMENT, icon="mdi:chart-bell-curve"),
     MetricDescription(key="temperature_variation_rate", label="Temperature Variation Rate", unit="°C/h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:thermometer-lines"),
     MetricDescription(key="heating_responsiveness", label="Heating Responsiveness", unit="%/h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-sunset-up"),
     MetricDescription(key="cooling_responsiveness", label="Cooling Responsiveness", unit="%/h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-sunset-down"),
-    MetricDescription(key="night_cooling_effectiveness", label="Night Cooling Effectiveness", unit="%/h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-night"),
+    MetricDescription(key="night_cooling_effectiveness", label="Night Cooling Effectiveness", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-night"),
+    MetricDescription(key="night_cooling_rate", label="Night Cooling Rate", unit="°C/h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:thermometer-chevron-down"),
     MetricDescription(key="comfort_retention_score", label="Comfort Retention Score", unit="%", state_class=SensorStateClass.MEASUREMENT, icon="mdi:home-thermometer"),
 )
 
