@@ -20,6 +20,7 @@ from .const import (
     CONF_OPERATIONAL,
     CONF_BUILDING,
     CONF_HUMIDITY_SENSOR,
+    CONF_IGNORE_PROJECTED_HUMIDITY,
     CONF_ID,
     CONF_AREA_ID,
     CONF_NAME,
@@ -57,6 +58,7 @@ from .const import (
     DEFAULT_OPERATIONAL_HISTORY_DAYS,
     DEFAULT_OPERATIONAL_HISTORY_LOOKBACK_DAYS,
     DEFAULT_NIGHT_COOLING_TARGET_GAP_REDUCTION_PER_HOUR,
+    DEFAULT_IGNORE_PROJECTED_HUMIDITY,
     DEFAULT_MIN_OUTDOOR_TEMPERATURE_RANGE,
     DEFAULT_MAX_INDOOR_TEMPERATURE_CHANGE,
     DEFAULT_TARGET_TEMPERATURE,
@@ -142,6 +144,15 @@ NIGHT_COOLING_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
+ZONE_NIGHT_COOLING_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_IGNORE_PROJECTED_HUMIDITY,
+            default=DEFAULT_IGNORE_PROJECTED_HUMIDITY,
+        ): cv.boolean,
+    }
+)
+
 ZONE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ID): cv.slug,
@@ -152,6 +163,7 @@ ZONE_SCHEMA = vol.Schema(
         vol.Optional(CONF_PROJECTED_HUMIDITY_MIN_ENTITY): cv.entity_id,
         vol.Optional(CONF_PROJECTED_HUMIDITY_MAX_ENTITY): cv.entity_id,
         vol.Optional(CONF_VENTILATION, default={}): VENTILATION_SCHEMA,
+        vol.Optional(CONF_NIGHT_COOLING, default={}): ZONE_NIGHT_COOLING_SCHEMA,
         vol.Optional(CONF_QUALITY, default={}): QUALITY_SCHEMA,
         vol.Optional(CONF_COMFORT, default={}): COMFORT_SCHEMA,
     }

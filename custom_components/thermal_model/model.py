@@ -26,6 +26,7 @@ from .const import (
     CONF_OPERATIONAL,
     CONF_BUILDING,
     CONF_HUMIDITY_SENSOR,
+    CONF_IGNORE_PROJECTED_HUMIDITY,
     CONF_ID,
     CONF_MIN_ENTHALPY_GAIN,
     CONF_MIN_OUTDOOR_TEMPERATURE_RANGE,
@@ -360,8 +361,11 @@ class ThermalModel:
         start = end - timedelta(
             days=max(window[CONF_HISTORY_LOOKBACK_DAYS] for window in windows.values())
         )
-        entity_ids = [self.outdoor[CONF_TEMPERATURE_SENSOR]] + [
-            zone[CONF_TEMPERATURE_SENSOR] for zone in selected_zones
+        entity_ids = [
+            self.outdoor[CONF_TEMPERATURE_SENSOR],
+            self.outdoor[CONF_HUMIDITY_SENSOR],
+            *[zone[CONF_TEMPERATURE_SENSOR] for zone in selected_zones],
+            *[zone[CONF_HUMIDITY_SENSOR] for zone in selected_zones],
         ]
         for zone in selected_zones:
             quality = self._zone_quality(zone)
@@ -385,11 +389,17 @@ class ThermalModel:
         outdoor_history = self._statistics_as_states(
             statistics.get(self.outdoor[CONF_TEMPERATURE_SENSOR], []), "mean"
         )
+        outdoor_humidity_history = self._statistics_as_states(
+            statistics.get(self.outdoor[CONF_HUMIDITY_SENSOR], []), "mean"
+        )
         recent_outdoor = [_number(state.state) for state in outdoor_history[-168:]]
         for zone in selected_zones:
             quality = self._zone_quality(zone)
             indoor_history = self._statistics_as_states(
                 statistics.get(zone[CONF_TEMPERATURE_SENSOR], []), "mean"
+            )
+            indoor_humidity_history = self._statistics_as_states(
+                statistics.get(zone[CONF_HUMIDITY_SENSOR], []), "mean"
             )
             exclusion_history = {
                 sensor[CONF_STATISTIC_ID]: self._statistics_as_states(
@@ -402,8 +412,11 @@ class ThermalModel:
                 name: self._analyze_zone(
                     outdoor_history,
                     indoor_history,
+                    outdoor_humidity_history,
+                    indoor_humidity_history,
                     exclusion_history,
                     quality,
+                    zone,
                     zone[CONF_COMFORT],
                     end - timedelta(days=window[CONF_HISTORY_LOOKBACK_DAYS]),
                     end,
@@ -457,8 +470,11 @@ class ThermalModel:
         self,
         outdoor_states: list[Any],
         indoor_states: list[Any],
+        outdoor_humidity_states: list[Any],
+        indoor_humidity_states: list[Any],
         exclusion_history: dict[str, list[Any]],
         quality: dict[str, Any],
+        zone: dict[str, Any],
         comfort: dict[str, Any],
         start,
         end,
@@ -468,6 +484,8 @@ class ThermalModel:
         interval = timedelta(hours=self.configuration[CONF_ANALYSIS_INTERVAL_HOURS])
         outdoor = self._sample_states(outdoor_states, start, end, interval)
         indoor = self._sample_states(indoor_states, start, end, interval)
+        outdoor_humidity = self._sample_states(outdoor_humidity_states, start, end, interval)
+        indoor_humidity = self._sample_states(indoor_humidity_states, start, end, interval)
         periods, quality_summary = self._select_acceptable_days(
             outdoor,
             indoor,
@@ -493,7 +511,13 @@ class ThermalModel:
         cooling_rate = 100 * cooling["response"] if cooling else None
         retention = 100 - min(100, fmean(responses) * 100) if responses else None
         comfort_metrics = self._comfort_metrics(periods, comfort)
-        night_cooling = self._night_cooling_metrics(periods)
+        humidity_by_day = self._group_samples_by_day(
+            outdoor_humidity,
+            indoor_humidity,
+            start,
+            interval,
+        )
+        night_cooling = self._night_cooling_metrics(periods, humidity_by_day, zone)
         return {
             **quality_summary,
             "heating_responsiveness": heating,
@@ -522,7 +546,19 @@ class ThermalModel:
             "temperature_variation_rate": variation_rate,
         }
 
-    def _night_cooling_metrics(self, periods) -> dict[str, float | None]:
+    @staticmethod
+    def _group_samples_by_day(outdoor, indoor, start, interval):
+        grouped = {}
+        timestamp = start
+        for outdoor_value, indoor_value in zip(outdoor, indoor, strict=True):
+            day = dt_util.as_local(timestamp).date()
+            grouped.setdefault(day, ([], []))
+            grouped[day][0].append(outdoor_value)
+            grouped[day][1].append(indoor_value)
+            timestamp += interval
+        return grouped
+
+    def _night_cooling_metrics(self, periods, humidity_by_day, zone) -> dict[str, float | None]:
         """Measure cooling rate and effectiveness from sunset until two hours after sunrise."""
         cooling_rates = []
         effectiveness_rates = []
@@ -532,6 +568,10 @@ class ThermalModel:
         ]
         samples_by_day = {day: (outdoor, indoor) for day, outdoor, indoor in periods}
         for day, outdoor, indoor in periods:
+            humidity_samples = humidity_by_day.get(day)
+            if not humidity_samples:
+                continue
+            outdoor_humidity, indoor_humidity = humidity_samples
             sunset = get_astral_event_date(self.hass, "sunset", day)
             sunrise = get_astral_event_date(self.hass, "sunrise", day + timedelta(days=1))
             if not sunset or not sunrise:
@@ -543,7 +583,17 @@ class ThermalModel:
             for index in range(start_index + 1, len(indoor)):
                 gap = indoor[index - 1] - outdoor[index - 1]
                 cooling = indoor[index - 1] - indoor[index]
-                if gap > 0.2 and cooling > 0:
+                if (
+                    gap > 0.2
+                    and cooling > 0
+                    and self._historical_ventilation_advised(
+                        zone,
+                        indoor[index - 1],
+                        indoor_humidity[index - 1],
+                        outdoor[index - 1],
+                        outdoor_humidity[index - 1],
+                    )
+                ):
                     cooling_rates.append(cooling / interval_hours)
                     effectiveness_rates.append(cooling / gap / interval_hours)
 
@@ -553,14 +603,38 @@ class ThermalModel:
             next_outdoor, next_indoor = next_samples
             gap = indoor[-1] - outdoor[-1]
             cooling = indoor[-1] - next_indoor[0]
-            if gap > 0.2 and cooling > 0:
+            next_humidity_samples = humidity_by_day.get(day + timedelta(days=1))
+            if not next_humidity_samples:
+                continue
+            next_outdoor_humidity, next_indoor_humidity = next_humidity_samples
+            if (
+                gap > 0.2
+                and cooling > 0
+                and self._historical_ventilation_advised(
+                    zone,
+                    indoor[-1],
+                    indoor_humidity[-1],
+                    outdoor[-1],
+                    outdoor_humidity[-1],
+                )
+            ):
                 cooling_rates.append(cooling / interval_hours)
                 effectiveness_rates.append(cooling / gap / interval_hours)
             end_index = min(len(next_indoor) - 1, end_hour // interval_hours)
             for index in range(1, end_index + 1):
                 gap = next_indoor[index - 1] - next_outdoor[index - 1]
                 cooling = next_indoor[index - 1] - next_indoor[index]
-                if gap > 0.2 and cooling > 0:
+                if (
+                    gap > 0.2
+                    and cooling > 0
+                    and self._historical_ventilation_advised(
+                        zone,
+                        next_indoor[index - 1],
+                        next_indoor_humidity[index - 1],
+                        next_outdoor[index - 1],
+                        next_outdoor_humidity[index - 1],
+                    )
+                ):
                     cooling_rates.append(cooling / interval_hours)
                     effectiveness_rates.append(cooling / gap / interval_hours)
         if not cooling_rates:
@@ -569,6 +643,46 @@ class ThermalModel:
             "rate": fmean(cooling_rates),
             "score": max(0, min(5, 5 * fmean(effectiveness_rates) / target_gap_reduction)),
         }
+
+    def _historical_ventilation_advised(
+        self,
+        zone: dict[str, Any],
+        indoor_temperature: float | None,
+        indoor_humidity: float | None,
+        outdoor_temperature: float | None,
+        outdoor_humidity: float | None,
+    ) -> bool:
+        """Return whether the configured ventilation rules recommend cooling."""
+        if None in {
+            indoor_temperature,
+            indoor_humidity,
+            outdoor_temperature,
+            outdoor_humidity,
+        }:
+            return False
+        ventilation = zone[CONF_VENTILATION]
+        ignore_projected = zone.get(CONF_NIGHT_COOLING, {}).get(
+            CONF_IGNORE_PROJECTED_HUMIDITY, False
+        )
+        if not ignore_projected:
+            projected = projected_humidity(
+                indoor_temperature,
+                absolute_humidity(outdoor_temperature, outdoor_humidity),
+            )
+            lower_bound = self._state_number(zone.get(CONF_PROJECTED_HUMIDITY_MIN_ENTITY))
+            upper_bound = self._state_number(zone.get(CONF_PROJECTED_HUMIDITY_MAX_ENTITY))
+            if lower_bound is not None and projected < lower_bound:
+                return False
+            if upper_bound is not None and projected > upper_bound:
+                return False
+        indoor_enthalpy = moist_air_enthalpy(indoor_temperature, indoor_humidity)
+        outdoor_enthalpy = moist_air_enthalpy(outdoor_temperature, outdoor_humidity)
+        return (
+            indoor_temperature >= ventilation[CONF_MIN_TEMPERATURE]
+            and outdoor_temperature
+            <= indoor_temperature - ventilation[CONF_MIN_TEMPERATURE_GAIN]
+            and indoor_enthalpy - outdoor_enthalpy >= ventilation[CONF_MIN_ENTHALPY_GAIN]
+        )
 
     @staticmethod
     def _sample_states(states: list[Any], start, end, interval: timedelta) -> list[float | None]:

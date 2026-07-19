@@ -111,6 +111,9 @@ thermal_model:
       humidity_sensor: sensor.music_room_humidity
       projected_humidity_min_entity: input_number.music_room_humidity_minimum
       projected_humidity_max_entity: input_number.music_room_humidity_maximum
+      night_cooling:
+        # Keep cooling scores comparable when projected humidity is not a constraint.
+        ignore_projected_humidity: true
       quality:
         max_indoor_temperature_change: 1.0
 ```
@@ -123,6 +126,7 @@ thermal_model:
 | `operational.history_lookback_days`     | `35`    | Recorder period searched for operational days. Range: 14–365.                            |
 | `building.history_days`                 | `42`    | Acceptable days required for building metrics. Range: 7–90.                              |
 | `building.history_lookback_days`        | `120`   | Recorder period searched for building days. Range: 14–365.                               |
+| `zones[].night_cooling.ignore_projected_humidity` | `false` | Ignore projected-humidity limits when selecting periods recommended for cooling. |
 | `analysis_interval_hours`               | `1`     | Sampling period for historical analysis. Range: 1–6 hours.                               |
 | `night_cooling.target_gap_reduction_per_hour` | `0.2` | Fraction of the indoor/outdoor gap reduced per hour for a night-cooling score of `5`. |
 | `quality.min_outdoor_temperature_range` | `3.0`   | Minimum daily outdoor-temperature range, in °C, for a day to be accepted.                |
