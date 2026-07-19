@@ -163,7 +163,6 @@ class ThermalModel:
         humidity = self._state_number(self.outdoor[CONF_HUMIDITY_SENSOR])
         if temperature is None or humidity is None or not 0 <= humidity <= 100:
             return None
-        night_cooling = self._night_cooling_effectiveness(periods)
         return {
             "temperature": temperature,
             "humidity": humidity,
@@ -434,6 +433,7 @@ class ThermalModel:
         cooling_rate = 100 * cooling["response"] if cooling else None
         retention = 100 - min(100, fmean(responses) * 100) if responses else None
         comfort_metrics = self._comfort_metrics(periods, comfort)
+        night_cooling = self._night_cooling_effectiveness(periods)
         return {
             **quality_summary,
             "heating_responsiveness": heating,
@@ -459,6 +459,7 @@ class ThermalModel:
     def _night_cooling_effectiveness(self, periods) -> float | None:
         """Measure cooling only from sunset until two hours after sunrise."""
         rates = []
+        samples_by_day = {day: (outdoor, indoor) for day, outdoor, indoor in periods}
         for day, outdoor, indoor in periods:
             sunset = get_astral_event_date(self.hass, "sunset", day)
             sunrise = get_astral_event_date(self.hass, "sunrise", day + timedelta(days=1))
@@ -466,9 +467,24 @@ class ThermalModel:
                 continue
             start_hour = dt_util.as_local(sunset).hour
             end_hour = (dt_util.as_local(sunrise) + timedelta(hours=2)).hour
-            for hour in range(start_hour + 1, min(24, end_hour + 1)):
+
+            for hour in range(start_hour + 1, 24):
                 gap = indoor[hour - 1] - outdoor[hour - 1]
                 cooling = indoor[hour - 1] - indoor[hour]
+                if gap > 0.2 and cooling > 0:
+                    rates.append(100 * cooling / gap)
+
+            next_samples = samples_by_day.get(day + timedelta(days=1))
+            if not next_samples:
+                continue
+            next_outdoor, next_indoor = next_samples
+            gap = indoor[-1] - outdoor[-1]
+            cooling = indoor[-1] - next_indoor[0]
+            if gap > 0.2 and cooling > 0:
+                rates.append(100 * cooling / gap)
+            for hour in range(1, min(24, end_hour + 1)):
+                gap = next_indoor[hour - 1] - next_outdoor[hour - 1]
+                cooling = next_indoor[hour - 1] - next_indoor[hour]
                 if gap > 0.2 and cooling > 0:
                     rates.append(100 * cooling / gap)
         return fmean(rates) if rates else None
