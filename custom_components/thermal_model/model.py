@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.storage import Store
+from homeassistant.helpers.sun import get_astral_event_date
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -162,6 +163,7 @@ class ThermalModel:
         humidity = self._state_number(self.outdoor[CONF_HUMIDITY_SENSOR])
         if temperature is None or humidity is None or not 0 <= humidity <= 100:
             return None
+        night_cooling = self._night_cooling_effectiveness(periods)
         return {
             "temperature": temperature,
             "humidity": humidity,
@@ -436,7 +438,7 @@ class ThermalModel:
             **quality_summary,
             "heating_responsiveness": heating,
             "cooling_responsiveness": cooling_rate,
-            "night_cooling_effectiveness": cooling_rate,
+            "night_cooling_effectiveness": night_cooling,
             "comfort_retention_score": retention,
             **comfort_metrics,
         }
@@ -447,7 +449,7 @@ class ThermalModel:
         tolerance = comfort[CONF_TEMPERATURE_TOLERANCE]
         changes = []
         recoveries = []
-        for _outdoor, indoor in periods:
+        for _day, _outdoor, indoor in periods:
             for before, after in zip(indoor, indoor[1:], strict=False):
                 changes.append(abs(after - before))
                 before_gap = abs(before - target)
@@ -459,6 +461,23 @@ class ThermalModel:
             "comfort_stability": stability,
             "comfort_recovery_rate": fmean(recoveries) if recoveries else None,
         }
+
+    def _night_cooling_effectiveness(self, periods) -> float | None:
+        """Measure cooling only from sunset until two hours after sunrise."""
+        rates = []
+        for day, outdoor, indoor in periods:
+            sunset = get_astral_event_date(self.hass, "sunset", day)
+            sunrise = get_astral_event_date(self.hass, "sunrise", day + timedelta(days=1))
+            if not sunset or not sunrise:
+                continue
+            start_hour = dt_util.as_local(sunset).hour
+            end_hour = (dt_util.as_local(sunrise) + timedelta(hours=2)).hour
+            for hour in range(start_hour + 1, min(24, end_hour + 1)):
+                gap = indoor[hour - 1] - outdoor[hour - 1]
+                cooling = indoor[hour - 1] - indoor[hour]
+                if gap > 0.2 and cooling > 0:
+                    rates.append(100 * cooling / gap)
+        return fmean(rates) if rates else None
 
     @staticmethod
     def _sample_states(states: list[Any], start, end, interval: timedelta) -> list[float | None]:
@@ -494,7 +513,7 @@ class ThermalModel:
             timestamp += interval
 
         expected_samples = int(timedelta(days=1) / interval)
-        accepted: list[tuple[list[float], list[float]]] = []
+        accepted: list[tuple[date, list[float], list[float]]] = []
         examined = 0
         rejected = 0
         rejected_incomplete = 0
@@ -532,7 +551,7 @@ class ThermalModel:
                 rejected += 1
                 rejected_exclusion_sensor += 1
                 continue
-            accepted.append((numeric_outdoor, numeric_indoor))
+            accepted.append((day, numeric_outdoor, numeric_indoor))
             if len(accepted) == self.configuration[CONF_HISTORY_DAYS]:
                 break
         return accepted, {
@@ -572,13 +591,13 @@ class ThermalModel:
 
     @staticmethod
     def _estimate_lag(
-        periods: list[tuple[list[float], list[float]]], direction: int
+        periods: list[tuple[date, list[float], list[float]]], direction: int
     ) -> dict[str, float] | None:
         candidates: list[dict[str, float]] = []
         for lag in range(13):
             outside_changes: list[float] = []
             inside_changes: list[float] = []
-            for outdoor, indoor in periods:
+            for _day, outdoor, indoor in periods:
                 for index in range(1, len(outdoor) - lag):
                     outdoor_change = outdoor[index] - outdoor[index - 1]
                     indoor_change = indoor[index + lag] - indoor[index + lag - 1]

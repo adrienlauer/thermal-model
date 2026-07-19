@@ -29,6 +29,7 @@ from .const import (
     CONF_MIN_TEMPERATURE_GAIN,
     CONF_OUTDOOR,
     CONF_QUALITY,
+    CONF_NIGHT_COOLING,
     CONF_COMFORT,
     CONF_TARGET_TEMPERATURE,
     CONF_TEMPERATURE_TOLERANCE,
@@ -157,6 +158,7 @@ CONFIG_SCHEMA = vol.Schema(
                     default=DEFAULT_ANALYSIS_INTERVAL_HOURS,
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=6)),
                 vol.Optional(CONF_QUALITY, default={}): QUALITY_SCHEMA,
+                vol.Optional(CONF_NIGHT_COOLING, default={}): dict,
                 vol.Optional(CONF_LABELS, default={}): dict,
             }
         )
