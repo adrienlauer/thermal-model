@@ -26,22 +26,22 @@ class MetricDescription:
 
 
 ZONE_METRICS = (
-    MetricDescription(key="absolute_humidity", label="Humidité absolue", unit="g/m³", state_class=SensorStateClass.MEASUREMENT, icon="mdi:water"),
-    MetricDescription(key="enthalpy", label="Enthalpie spécifique", unit="kJ/kg", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-windy"),
+    MetricDescription(key="absolute_humidity", label="Absolute Humidity", unit="g/m³", state_class=SensorStateClass.MEASUREMENT, icon="mdi:water"),
+    MetricDescription(key="enthalpy", label="Specific Enthalpy", unit="kJ/kg", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-windy"),
     MetricDescription(key="humidex", label="Humidex", unit=UnitOfTemperature.CELSIUS, device_class=SensorDeviceClass.TEMPERATURE, state_class=SensorStateClass.MEASUREMENT, icon="mdi:thermometer-water"),
-    MetricDescription(key="projected_humidity", label="Humidité projetée après aération", unit="%", device_class=SensorDeviceClass.HUMIDITY, state_class=SensorStateClass.MEASUREMENT, icon="mdi:water-sync"),
-    MetricDescription(key="enthalpy_gain", label="Gain d'enthalpie", unit="kJ/kg", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-windy"),
-    MetricDescription(key="ventilation_advice", label="Recommandation d'aération", icon="mdi:window-open-variant"),
-    MetricDescription(key="cooling_lag", label="Déphasage thermique au refroidissement", unit="h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-sunset-down"),
-    MetricDescription(key="warming_lag", label="Déphasage thermique au réchauffement", unit="h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-sunset-up"),
-    MetricDescription(key="thermal_inertia", label="Indice d'inertie thermique", unit="h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:home-thermometer"),
-    MetricDescription(key="thermal_response", label="Réactivité thermique", unit="%", state_class=SensorStateClass.MEASUREMENT, icon="mdi:chart-timeline-variant"),
+    MetricDescription(key="projected_humidity", label="Projected Humidity", unit="%", device_class=SensorDeviceClass.HUMIDITY, state_class=SensorStateClass.MEASUREMENT, icon="mdi:water-sync"),
+    MetricDescription(key="enthalpy_gain", label="Enthalpy Gain", unit="kJ/kg", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-windy"),
+    MetricDescription(key="ventilation_advice", label="Ventilation Advice", icon="mdi:window-open-variant"),
+    MetricDescription(key="cooling_lag", label="Cooling Thermal Lag", unit="h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-sunset-down"),
+    MetricDescription(key="warming_lag", label="Warming Thermal Lag", unit="h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-sunset-up"),
+    MetricDescription(key="thermal_inertia", label="Thermal Inertia Index", unit="h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:home-thermometer"),
+    MetricDescription(key="thermal_response", label="Thermal Responsiveness", unit="%", state_class=SensorStateClass.MEASUREMENT, icon="mdi:chart-timeline-variant"),
 )
 
 GLOBAL_METRICS = (
-    MetricDescription(key="average_enthalpy", label="Enthalpie moyenne intérieure", unit="kJ/kg", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-windy"),
-    MetricDescription(key="average_enthalpy_gain", label="Gain d'enthalpie moyen intérieur", unit="kJ/kg", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-windy"),
-    MetricDescription(key="ventilation_summary", label="Synthèse d'aération", icon="mdi:window-open-variant"),
+    MetricDescription(key="average_enthalpy", label="Average Indoor Enthalpy", unit="kJ/kg", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-windy"),
+    MetricDescription(key="average_enthalpy_gain", label="Average Indoor Enthalpy Gain", unit="kJ/kg", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-windy"),
+    MetricDescription(key="ventilation_summary", label="Ventilation Summary", icon="mdi:window-open-variant"),
 )
 
 
