@@ -34,7 +34,6 @@ ZONE_METRICS = (
     MetricDescription(key="ventilation_advice", label="Ventilation Advice", icon="mdi:window-open-variant"),
     MetricDescription(key="comfort_score", label="Comfort Score", unit="%", state_class=SensorStateClass.MEASUREMENT, icon="mdi:home-heart"),
     MetricDescription(key="comfort_stability", label="Comfort Stability", unit="%", state_class=SensorStateClass.MEASUREMENT, icon="mdi:chart-bell-curve"),
-    MetricDescription(key="comfort_recovery_rate", label="Comfort Recovery Rate", unit="%/h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:thermometer-chevron-up"),
     MetricDescription(key="heating_responsiveness", label="Heating Responsiveness", unit="%/h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-sunset-up"),
     MetricDescription(key="cooling_responsiveness", label="Cooling Responsiveness", unit="%/h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-sunset-down"),
     MetricDescription(key="night_cooling_effectiveness", label="Night Cooling Effectiveness", unit="%/h", state_class=SensorStateClass.MEASUREMENT, icon="mdi:weather-night"),

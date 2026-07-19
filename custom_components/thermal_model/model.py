@@ -221,7 +221,7 @@ class ThermalModel:
 
     def zone_attributes(self, zone: dict[str, Any], metric: str) -> dict[str, Any]:
         if metric != "ventilation_advice":
-            if metric in {"heating_responsiveness", "cooling_responsiveness", "night_cooling_effectiveness", "comfort_retention_score", "comfort_stability", "comfort_recovery_rate"}:
+            if metric in {"heating_responsiveness", "cooling_responsiveness", "night_cooling_effectiveness", "comfort_retention_score", "comfort_stability"}:
                 analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
                 return {
                     "last_analysis": self._analysis.get("analyzed_at"),
@@ -448,18 +448,12 @@ class ThermalModel:
         target = comfort[CONF_TARGET_TEMPERATURE]
         tolerance = comfort[CONF_TEMPERATURE_TOLERANCE]
         changes = []
-        recoveries = []
         for _day, _outdoor, indoor in periods:
             for before, after in zip(indoor, indoor[1:], strict=False):
                 changes.append(abs(after - before))
-                before_gap = abs(before - target)
-                after_gap = abs(after - target)
-                if before_gap > tolerance and after_gap < before_gap:
-                    recoveries.append(100 * (before_gap - after_gap) / before_gap)
         stability = max(0, 100 * (1 - fmean(changes) / tolerance)) if changes else None
         return {
             "comfort_stability": stability,
-            "comfort_recovery_rate": fmean(recoveries) if recoveries else None,
         }
 
     def _night_cooling_effectiveness(self, periods) -> float | None:
