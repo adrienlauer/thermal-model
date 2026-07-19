@@ -476,6 +476,7 @@ class ThermalModel:
             start,
             end,
             interval,
+            required_days,
         )
         quality_summary.update(
             {
@@ -593,6 +594,7 @@ class ThermalModel:
         start,
         end,
         interval: timedelta,
+        required_days: int,
     ) -> tuple[list[tuple[list[float], list[float]]], dict[str, int]]:
         """Return recent full days that satisfy the configured quality rules."""
         samples_by_day: dict[date, list[tuple[float | None, float | None]]] = {}
@@ -642,7 +644,7 @@ class ThermalModel:
                 rejected_exclusion_sensor += 1
                 continue
             accepted.append((day, numeric_outdoor, numeric_indoor))
-            if len(accepted) == self.configuration[CONF_HISTORY_DAYS]:
+            if len(accepted) == required_days:
                 break
         return accepted, {
             "accepted_days": len(accepted),
