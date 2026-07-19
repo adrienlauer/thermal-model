@@ -33,6 +33,9 @@ from .const import (
     CONF_LABELS,
     CONF_OUTDOOR,
     CONF_QUALITY,
+    CONF_COMFORT,
+    CONF_TARGET_TEMPERATURE,
+    CONF_TEMPERATURE_TOLERANCE,
     CONF_EXCLUSION_SENSORS,
     CONF_STATISTIC_ID,
     CONF_STATISTIC_TYPE,
@@ -195,13 +198,19 @@ class ThermalModel:
             return round(snapshot["enthalpy"] - outdoor["enthalpy"], 1)
         if metric == "ventilation_advice":
             return self._ventilation_advice(zone, snapshot, outdoor)
+        if metric == "comfort_score":
+            if not snapshot:
+                return None
+            comfort = zone[CONF_COMFORT]
+            deviation = abs(snapshot["temperature"] - comfort[CONF_TARGET_TEMPERATURE])
+            return round(max(0, 100 * (1 - deviation / comfort[CONF_TEMPERATURE_TOLERANCE])), 1)
         zone_analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
         value = zone_analysis.get(metric)
         return round(value, 1) if isinstance(value, (int, float)) else None
 
     def zone_attributes(self, zone: dict[str, Any], metric: str) -> dict[str, Any]:
         if metric != "ventilation_advice":
-            if metric in {"cooling_lag", "warming_lag", "thermal_inertia", "thermal_response"}:
+            if metric in {"heating_responsiveness", "cooling_responsiveness", "night_cooling_effectiveness", "comfort_retention_score", "comfort_stability", "comfort_recovery_rate"}:
                 analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
                 return {
                     "last_analysis": self._analysis.get("analyzed_at"),
@@ -405,14 +414,37 @@ class ThermalModel:
             return quality_summary
         cooling = self._estimate_lag(periods, direction=-1)
         warming = self._estimate_lag(periods, direction=1)
-        lags = [result["lag"] for result in (cooling, warming) if result]
         responses = [result["response"] for result in (cooling, warming) if result]
+        heating = 100 * warming["response"] if warming else None
+        cooling_rate = 100 * cooling["response"] if cooling else None
+        retention = 100 - min(100, fmean(responses) * 100) if responses else None
+        comfort = self._comfort_metrics(periods, zone[CONF_COMFORT])
         return {
             **quality_summary,
-            "cooling_lag": cooling["lag"] if cooling else None,
-            "warming_lag": warming["lag"] if warming else None,
-            "thermal_inertia": fmean(lags) if lags else None,
-            "thermal_response": 100 * fmean(responses) if responses else None,
+            "heating_responsiveness": heating,
+            "cooling_responsiveness": cooling_rate,
+            "night_cooling_effectiveness": cooling_rate,
+            "comfort_retention_score": retention,
+            **comfort,
+        }
+
+    @staticmethod
+    def _comfort_metrics(periods, comfort):
+        target = comfort[CONF_TARGET_TEMPERATURE]
+        tolerance = comfort[CONF_TEMPERATURE_TOLERANCE]
+        changes = []
+        recoveries = []
+        for _outdoor, indoor in periods:
+            for before, after in zip(indoor, indoor[1:], strict=False):
+                changes.append(abs(after - before))
+                before_gap = abs(before - target)
+                after_gap = abs(after - target)
+                if before_gap > tolerance and after_gap < before_gap:
+                    recoveries.append(100 * (before_gap - after_gap) / before_gap)
+        stability = max(0, 100 * (1 - fmean(changes) / tolerance)) if changes else None
+        return {
+            "comfort_stability": stability,
+            "comfort_recovery_rate": fmean(recoveries) if recoveries else None,
         }
 
     @staticmethod

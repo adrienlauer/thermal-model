@@ -29,6 +29,9 @@ from .const import (
     CONF_MIN_TEMPERATURE_GAIN,
     CONF_OUTDOOR,
     CONF_QUALITY,
+    CONF_COMFORT,
+    CONF_TARGET_TEMPERATURE,
+    CONF_TEMPERATURE_TOLERANCE,
     CONF_EXCLUSION_SENSORS,
     CONF_ENTITY_ID,
     CONF_ACTIVE_STATE,
@@ -49,6 +52,8 @@ from .const import (
     DEFAULT_HISTORY_LOOKBACK_DAYS,
     DEFAULT_MIN_OUTDOOR_TEMPERATURE_RANGE,
     DEFAULT_MAX_INDOOR_TEMPERATURE_CHANGE,
+    DEFAULT_TARGET_TEMPERATURE,
+    DEFAULT_TEMPERATURE_TOLERANCE,
     DEFAULT_ACTIVE_STATE,
     DEFAULT_STATISTIC_TYPE,
     DEFAULT_ABOVE,
@@ -104,6 +109,13 @@ QUALITY_SCHEMA = vol.Schema(
     }
 )
 
+COMFORT_SCHEMA = vol.Schema(
+    {
+        vol.Optional(CONF_TARGET_TEMPERATURE, default=DEFAULT_TARGET_TEMPERATURE): vol.Coerce(float),
+        vol.Optional(CONF_TEMPERATURE_TOLERANCE, default=DEFAULT_TEMPERATURE_TOLERANCE): vol.All(vol.Coerce(float), vol.Range(min=0.1, max=10)),
+    }
+)
+
 ZONE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ID): cv.slug,
@@ -115,6 +127,7 @@ ZONE_SCHEMA = vol.Schema(
         vol.Optional(CONF_PROJECTED_HUMIDITY_MAX_ENTITY): cv.entity_id,
         vol.Optional(CONF_VENTILATION, default={}): VENTILATION_SCHEMA,
         vol.Optional(CONF_QUALITY, default={}): QUALITY_SCHEMA,
+        vol.Optional(CONF_COMFORT, default={}): COMFORT_SCHEMA,
     }
 )
 
