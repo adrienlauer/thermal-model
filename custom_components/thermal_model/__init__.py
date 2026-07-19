@@ -17,6 +17,8 @@ from .const import (
     CONF_DRYING_MIN_HUMIDITY,
     CONF_HISTORY_DAYS,
     CONF_HISTORY_LOOKBACK_DAYS,
+    CONF_OPERATIONAL,
+    CONF_BUILDING,
     CONF_HUMIDITY_SENSOR,
     CONF_ID,
     CONF_AREA_ID,
@@ -30,6 +32,7 @@ from .const import (
     CONF_OUTDOOR,
     CONF_QUALITY,
     CONF_NIGHT_COOLING,
+    CONF_TARGET_GAP_REDUCTION_PER_HOUR,
     CONF_COMFORT,
     CONF_TARGET_TEMPERATURE,
     CONF_TEMPERATURE_TOLERANCE,
@@ -51,6 +54,9 @@ from .const import (
     DEFAULT_DRYING_MIN_HUMIDITY,
     DEFAULT_HISTORY_DAYS,
     DEFAULT_HISTORY_LOOKBACK_DAYS,
+    DEFAULT_OPERATIONAL_HISTORY_DAYS,
+    DEFAULT_OPERATIONAL_HISTORY_LOOKBACK_DAYS,
+    DEFAULT_NIGHT_COOLING_TARGET_GAP_REDUCTION_PER_HOUR,
     DEFAULT_MIN_OUTDOOR_TEMPERATURE_RANGE,
     DEFAULT_MAX_INDOOR_TEMPERATURE_CHANGE,
     DEFAULT_TARGET_TEMPERATURE,
@@ -117,6 +123,25 @@ COMFORT_SCHEMA = vol.Schema(
     }
 )
 
+HISTORY_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_HISTORY_DAYS): vol.All(vol.Coerce(int), vol.Range(min=7, max=90)),
+        vol.Required(CONF_HISTORY_LOOKBACK_DAYS): vol.All(
+            vol.Coerce(int), vol.Range(min=14, max=365)
+        ),
+    }
+)
+
+NIGHT_COOLING_SCHEMA = vol.Schema(
+    {
+        vol.Optional(
+            CONF_TARGET_GAP_REDUCTION_PER_HOUR,
+            default=DEFAULT_NIGHT_COOLING_TARGET_GAP_REDUCTION_PER_HOUR,
+        ): vol.All(vol.Coerce(float), vol.Range(min=0.01, max=1.0)),
+    },
+    extra=vol.ALLOW_EXTRA,
+)
+
 ZONE_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_ID): cv.slug,
@@ -157,8 +182,13 @@ CONFIG_SCHEMA = vol.Schema(
                     CONF_ANALYSIS_INTERVAL_HOURS,
                     default=DEFAULT_ANALYSIS_INTERVAL_HOURS,
                 ): vol.All(vol.Coerce(int), vol.Range(min=1, max=6)),
+                vol.Optional(CONF_OPERATIONAL, default={
+                    CONF_HISTORY_DAYS: DEFAULT_OPERATIONAL_HISTORY_DAYS,
+                    CONF_HISTORY_LOOKBACK_DAYS: DEFAULT_OPERATIONAL_HISTORY_LOOKBACK_DAYS,
+                }): HISTORY_SCHEMA,
+                vol.Optional(CONF_BUILDING): HISTORY_SCHEMA,
                 vol.Optional(CONF_QUALITY, default={}): QUALITY_SCHEMA,
-                vol.Optional(CONF_NIGHT_COOLING, default={}): dict,
+                vol.Optional(CONF_NIGHT_COOLING, default={}): NIGHT_COOLING_SCHEMA,
                 vol.Optional(CONF_LABELS, default={}): dict,
             }
         )

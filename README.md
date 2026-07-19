@@ -9,7 +9,7 @@ from Recorder statistics.
 - Live absolute humidity, specific enthalpy, humidex, projected humidity, and enthalpy gain.
 - Per-zone ventilation advice based on temperature, moisture, enthalpy, rain, and optional projected-humidity limits.
 - A live, season-adaptive comfort score.
-- Historical comfort stability score, temperature variation rate, heating and cooling responsiveness, comfort retention, and night-cooling effectiveness.
+- Three horizons: live comfort, recent operational behaviour, and long-term building response.
 - A building-wide average enthalpy, enthalpy gain, and ventilation summary.
 - Localized entity names and recommendations through configurable labels.
 
@@ -17,8 +17,8 @@ from Recorder statistics.
 
 - Home Assistant with the [`recorder`](https://www.home-assistant.io/integrations/recorder/) integration enabled.
 - Temperature and relative-humidity sensors for outdoors and every managed zone.
-- At least `history_days` of Recorder long-term statistics for the outdoor temperature and every zone temperature.
-  Sensors must provide usable hourly mean statistics.
+- Enough Recorder long-term statistics for the configured operational and building windows. Sensors must provide usable
+  hourly mean statistics.
 - A configured Home Assistant location: night-cooling analysis uses local sunset and sunrise.
 
 ## Installation
@@ -66,11 +66,20 @@ thermal_model:
     humidity_sensor: sensor.outdoor_humidity
     rain_sensor: binary_sensor.rain
 
-  # Number of acceptable days required for historical metrics.
-  history_days: 42
-  # Recorder period searched to find those acceptable days.
-  history_lookback_days: 120
+  # Recent operation: ventilation and comfort behaviour.
+  operational:
+    history_days: 14
+    history_lookback_days: 35
+
+  # Long-term building response.
+  building:
+    history_days: 42
+    history_lookback_days: 180
   analysis_interval_hours: 1
+
+  night_cooling:
+    # A score of 5 means 20% of the indoor/outdoor gap is reduced each hour.
+    target_gap_reduction_per_hour: 0.2
 
   # Default data-quality rules for every zone.
   quality:
@@ -110,9 +119,12 @@ thermal_model:
 
 | Option                                  | Default | Description                                                                              |
 |-----------------------------------------|---------|------------------------------------------------------------------------------------------|
-| `history_days`                          | `42`    | Number of acceptable days required before historical metrics are published. Range: 7–90. |
-| `history_lookback_days`                 | `120`   | How far Recorder statistics are searched to collect acceptable days. Range: 14–365.      |
+| `operational.history_days`              | `14`    | Recent acceptable days required for operational metrics. Range: 7–90.                    |
+| `operational.history_lookback_days`     | `35`    | Recorder period searched for operational days. Range: 14–365.                            |
+| `building.history_days`                 | `42`    | Acceptable days required for building metrics. Range: 7–90.                              |
+| `building.history_lookback_days`        | `120`   | Recorder period searched for building days. Range: 14–365.                               |
 | `analysis_interval_hours`               | `1`     | Sampling period for historical analysis. Range: 1–6 hours.                               |
+| `night_cooling.target_gap_reduction_per_hour` | `0.2` | Fraction of the indoor/outdoor gap reduced per hour for a night-cooling score of `5`. |
 | `quality.min_outdoor_temperature_range` | `3.0`   | Minimum daily outdoor-temperature range, in °C, for a day to be accepted.                |
 | `quality.max_indoor_temperature_change` | `2.0`   | Maximum change between two samples, in °C, before a day is rejected.                     |
 | `comfort.target_temperature`            | `21`    | Reference temperature used for comfort stability.                                        |
@@ -156,7 +168,8 @@ Label changes affect entity display names, not their stable entity IDs or unique
 
 ## Entities and metrics
 
-Each zone receives the following sensors:
+Each zone receives the following sensors. Live metrics use current sensor states; operational metrics use the recent
+window; building metrics use the long-term window.
 
 | Metric                           | Meaning                                                                                                                       |
 |----------------------------------|-------------------------------------------------------------------------------------------------------------------------------|
@@ -166,14 +179,14 @@ Each zone receives the following sensors:
 | Projected Humidity               | Estimated relative humidity if indoor air is replaced by outdoor air at the current indoor temperature.                       |
 | Enthalpy Gain                    | Indoor specific enthalpy minus outdoor specific enthalpy. A positive value means outdoor air has lower enthalpy.              |
 | Ventilation Advice               | `Ventilate`, `Ventilate Briefly`, or `Keep Closed`.                                                                           |
-| Comfort Score                    | Live score from `0` to `5` using a season-adaptive target derived from the recent outdoor mean.                                |
+| Comfort Score                    | Live score from `0` to `5`: `5` inside the comfort band, then decreasing linearly to `0` at 4 °C outside it.                  |
 | Comfort Temperature Deviation    | Current absolute distance outside the comfort band, in °C. Zero means that the room is inside the band.                      |
-| Comfort Stability                | Historical score from `0` to `5` based on the typical hourly indoor-temperature movement.                                     |
-| Temperature Variation Rate       | Mean absolute indoor-temperature variation between hourly samples, in °C/h.                                                   |
-| Heating / Cooling Responsiveness | Historical indoor response relative to outdoor warming or cooling.                                                            |
-| Night Cooling Effectiveness      | Historical score from `0` to `5` for cooling effectiveness from sunset until two hours after sunrise.                        |
-| Night Cooling Rate               | Mean indoor temperature decrease during the night-cooling window, in °C/h.                                                  |
-| Comfort Retention Score          | Inverse of the historical average thermal response; higher means indoor temperature changes less relative to outdoor changes. |
+| Comfort Stability                | Recent score from `0` to `5` based on the typical hourly indoor-temperature movement.                                         |
+| Temperature Variation Rate       | Recent mean absolute indoor-temperature variation between hourly samples, in °C/h.                                            |
+| Night Cooling Effectiveness      | Recent score from `0` to `5`; `5` reaches the configured gap-reduction target each hour.                                    |
+| Night Cooling Rate               | Recent mean indoor temperature decrease during the night-cooling window, in °C/h.                                             |
+| Heating / Cooling Responsiveness | Long-term indoor response relative to outdoor warming or cooling.                                                             |
+| Comfort Retention Score          | Long-term inverse of the average thermal response; higher means indoor temperature changes less relative to outdoor changes. |
 
 The integration also publishes Average Indoor Enthalpy, Average Indoor Enthalpy Gain, and Ventilation Summary for all
 configured zones.
@@ -211,8 +224,8 @@ automation:
 - **Live metrics are `unknown`:** verify that the configured temperature and humidity entities have current numeric
   states.
 - **Historical metrics are `unknown`:** check the entity history and long-term statistics, then inspect the metric
-  attributes for accepted and rejected day counts. Increase `history_lookback_days`, reduce `history_days`, or adjust
-  quality thresholds only when the retained days are genuinely representative.
+  attributes for accepted and rejected day counts. Adjust the corresponding `operational` or `building` window only
+  when the retained days are genuinely representative.
 - **Night cooling is `unknown`:** ensure Home Assistant has a valid location and that enough consecutive acceptable days
   exist to cover the night period.
 - **No new entities after installation:** confirm the directory is exactly `custom_components/thermal_model`, check the

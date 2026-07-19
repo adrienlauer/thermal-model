@@ -23,6 +23,8 @@ from .const import (
     CONF_DRYING_MIN_HUMIDITY,
     CONF_HISTORY_DAYS,
     CONF_HISTORY_LOOKBACK_DAYS,
+    CONF_OPERATIONAL,
+    CONF_BUILDING,
     CONF_HUMIDITY_SENSOR,
     CONF_ID,
     CONF_MIN_ENTHALPY_GAIN,
@@ -35,6 +37,8 @@ from .const import (
     CONF_OUTDOOR,
     CONF_QUALITY,
     CONF_COMFORT,
+    CONF_NIGHT_COOLING,
+    CONF_TARGET_GAP_REDUCTION_PER_HOUR,
     CONF_TEMPERATURE_TOLERANCE,
     CONF_EXCLUSION_SENSORS,
     CONF_STATISTIC_ID,
@@ -51,6 +55,19 @@ from .const import (
     STORAGE_KEY,
     STORAGE_VERSION,
 )
+
+
+OPERATIONAL_METRICS = {
+    "comfort_stability",
+    "temperature_variation_rate",
+    "night_cooling_effectiveness",
+    "night_cooling_rate",
+}
+BUILDING_METRICS = {
+    "heating_responsiveness",
+    "cooling_responsiveness",
+    "comfort_retention_score",
+}
 
 
 def _number(value: Any) -> float | None:
@@ -211,18 +228,24 @@ class ThermalModel:
             if metric == "comfort_temperature_deviation":
                 return round(distance, 1)
             return round(max(0, min(5, 5 * (1 - distance / 4))), 1)
-        zone_analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
+        analysis_group = "operational" if metric in OPERATIONAL_METRICS else "building"
+        zone_analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {}).get(
+            analysis_group, {}
+        )
         value = zone_analysis.get(metric)
         return round(value, 1) if isinstance(value, (int, float)) else None
 
     def zone_attributes(self, zone: dict[str, Any], metric: str) -> dict[str, Any]:
         if metric != "ventilation_advice":
-            if metric in {"heating_responsiveness", "cooling_responsiveness", "night_cooling_effectiveness", "night_cooling_rate", "comfort_retention_score", "comfort_stability", "temperature_variation_rate"}:
-                analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {})
+            if metric in OPERATIONAL_METRICS | BUILDING_METRICS:
+                analysis_group = "operational" if metric in OPERATIONAL_METRICS else "building"
+                analysis = self._analysis.get("zones", {}).get(zone[CONF_ID], {}).get(
+                    analysis_group, {}
+                )
                 return {
                     "last_analysis": self._analysis.get("analyzed_at"),
                     "accepted_days": analysis.get("accepted_days", 0),
-                    "required_days": self.configuration[CONF_HISTORY_DAYS],
+                    "required_days": analysis.get("required_days", 0),
                     "examined_days": analysis.get("examined_days", 0),
                     "rejected_days": analysis.get("rejected_days", 0),
                     "rejected_incomplete_days": analysis.get(
@@ -237,7 +260,7 @@ class ThermalModel:
                     "rejected_exclusion_sensor_days": analysis.get(
                         "rejected_exclusion_sensor_days", 0
                     ),
-                    "maximum_lookback_days": self.configuration[CONF_HISTORY_LOOKBACK_DAYS],
+                    "maximum_lookback_days": analysis.get("maximum_lookback_days", 0),
                 }
             return {}
         snapshot = self._zone_snapshot(zone)
@@ -259,6 +282,21 @@ class ThermalModel:
         lower = target - 1.5
         upper = target + 2.0
         return lower - temperature if temperature < lower else temperature - upper if temperature > upper else 0.0
+
+    def _analysis_windows(self) -> dict[str, dict[str, int]]:
+        building = self.configuration.get(CONF_BUILDING, {})
+        return {
+            "operational": self.configuration[CONF_OPERATIONAL],
+            "building": {
+                CONF_HISTORY_DAYS: building.get(
+                    CONF_HISTORY_DAYS, self.configuration[CONF_HISTORY_DAYS]
+                ),
+                CONF_HISTORY_LOOKBACK_DAYS: building.get(
+                    CONF_HISTORY_LOOKBACK_DAYS,
+                    self.configuration[CONF_HISTORY_LOOKBACK_DAYS],
+                ),
+            },
+        }
 
     def global_value(self, metric: str) -> float | str | None:
         snapshots = [self._zone_snapshot(zone) for zone in self.zones]
@@ -318,7 +356,10 @@ class ThermalModel:
         if not selected_zones:
             return
         end = dt_util.utcnow()
-        start = end - timedelta(days=self.configuration[CONF_HISTORY_LOOKBACK_DAYS])
+        windows = self._analysis_windows()
+        start = end - timedelta(
+            days=max(window[CONF_HISTORY_LOOKBACK_DAYS] for window in windows.values())
+        )
         entity_ids = [self.outdoor[CONF_TEMPERATURE_SENSOR]] + [
             zone[CONF_TEMPERATURE_SENSOR] for zone in selected_zones
         ]
@@ -347,23 +388,30 @@ class ThermalModel:
         recent_outdoor = [_number(state.state) for state in outdoor_history[-168:]]
         for zone in selected_zones:
             quality = self._zone_quality(zone)
-            analyses[zone[CONF_ID]] = self._analyze_zone(
-                outdoor_history,
-                self._statistics_as_states(
-                    statistics.get(zone[CONF_TEMPERATURE_SENSOR], []), "mean"
-                ),
-                {
-                    sensor[CONF_STATISTIC_ID]: self._statistics_as_states(
-                        statistics.get(sensor[CONF_STATISTIC_ID], []),
-                        sensor[CONF_STATISTIC_TYPE],
-                    )
-                    for sensor in quality[CONF_EXCLUSION_SENSORS]
-                },
-                quality,
-                zone[CONF_COMFORT],
-                start,
-                end,
+            indoor_history = self._statistics_as_states(
+                statistics.get(zone[CONF_TEMPERATURE_SENSOR], []), "mean"
             )
+            exclusion_history = {
+                sensor[CONF_STATISTIC_ID]: self._statistics_as_states(
+                    statistics.get(sensor[CONF_STATISTIC_ID], []),
+                    sensor[CONF_STATISTIC_TYPE],
+                )
+                for sensor in quality[CONF_EXCLUSION_SENSORS]
+            }
+            analyses[zone[CONF_ID]] = {
+                name: self._analyze_zone(
+                    outdoor_history,
+                    indoor_history,
+                    exclusion_history,
+                    quality,
+                    zone[CONF_COMFORT],
+                    end - timedelta(days=window[CONF_HISTORY_LOOKBACK_DAYS]),
+                    end,
+                    window[CONF_HISTORY_DAYS],
+                    window[CONF_HISTORY_LOOKBACK_DAYS],
+                )
+                for name, window in windows.items()
+            }
         self._analysis = {
             "analyzed_at": dt_util.utcnow().isoformat(),
             "outdoor_mean_7d": fmean(value for value in recent_outdoor if value is not None),
@@ -414,6 +462,8 @@ class ThermalModel:
         comfort: dict[str, Any],
         start,
         end,
+        required_days: int,
+        maximum_lookback_days: int,
     ) -> dict[str, float | int | None]:
         interval = timedelta(hours=self.configuration[CONF_ANALYSIS_INTERVAL_HOURS])
         outdoor = self._sample_states(outdoor_states, start, end, interval)
@@ -427,7 +477,13 @@ class ThermalModel:
             end,
             interval,
         )
-        if len(periods) < self.configuration[CONF_HISTORY_DAYS]:
+        quality_summary.update(
+            {
+                "required_days": required_days,
+                "maximum_lookback_days": maximum_lookback_days,
+            }
+        )
+        if len(periods) < required_days:
             return quality_summary
         cooling = self._estimate_lag(periods, direction=-1)
         warming = self._estimate_lag(periods, direction=1)
@@ -470,6 +526,9 @@ class ThermalModel:
         cooling_rates = []
         effectiveness_rates = []
         interval_hours = self.configuration[CONF_ANALYSIS_INTERVAL_HOURS]
+        target_gap_reduction = self.configuration[CONF_NIGHT_COOLING][
+            CONF_TARGET_GAP_REDUCTION_PER_HOUR
+        ]
         samples_by_day = {day: (outdoor, indoor) for day, outdoor, indoor in periods}
         for day, outdoor, indoor in periods:
             sunset = get_astral_event_date(self.hass, "sunset", day)
@@ -478,13 +537,14 @@ class ThermalModel:
                 continue
             start_hour = dt_util.as_local(sunset).hour
             end_hour = (dt_util.as_local(sunrise) + timedelta(hours=2)).hour
+            start_index = min(len(indoor) - 1, start_hour // interval_hours)
 
-            for hour in range(start_hour + 1, 24):
-                gap = indoor[hour - 1] - outdoor[hour - 1]
-                cooling = indoor[hour - 1] - indoor[hour]
+            for index in range(start_index + 1, len(indoor)):
+                gap = indoor[index - 1] - outdoor[index - 1]
+                cooling = indoor[index - 1] - indoor[index]
                 if gap > 0.2 and cooling > 0:
                     cooling_rates.append(cooling / interval_hours)
-                    effectiveness_rates.append(100 * cooling / gap)
+                    effectiveness_rates.append(cooling / gap / interval_hours)
 
             next_samples = samples_by_day.get(day + timedelta(days=1))
             if not next_samples:
@@ -494,18 +554,19 @@ class ThermalModel:
             cooling = indoor[-1] - next_indoor[0]
             if gap > 0.2 and cooling > 0:
                 cooling_rates.append(cooling / interval_hours)
-                effectiveness_rates.append(100 * cooling / gap)
-            for hour in range(1, min(24, end_hour + 1)):
-                gap = next_indoor[hour - 1] - next_outdoor[hour - 1]
-                cooling = next_indoor[hour - 1] - next_indoor[hour]
+                effectiveness_rates.append(cooling / gap / interval_hours)
+            end_index = min(len(next_indoor) - 1, end_hour // interval_hours)
+            for index in range(1, end_index + 1):
+                gap = next_indoor[index - 1] - next_outdoor[index - 1]
+                cooling = next_indoor[index - 1] - next_indoor[index]
                 if gap > 0.2 and cooling > 0:
                     cooling_rates.append(cooling / interval_hours)
-                    effectiveness_rates.append(100 * cooling / gap)
+                    effectiveness_rates.append(cooling / gap / interval_hours)
         if not cooling_rates:
             return {"rate": None, "score": None}
         return {
             "rate": fmean(cooling_rates),
-            "score": max(0, min(5, 5 * fmean(effectiveness_rates) / 100)),
+            "score": max(0, min(5, 5 * fmean(effectiveness_rates) / target_gap_reduction)),
         }
 
     @staticmethod
